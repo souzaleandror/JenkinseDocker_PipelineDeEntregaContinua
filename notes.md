@@ -3,7 +3,61 @@
 Curso de Jenkins e Docker: Pipeline de entrega continua
 
 https://stackoverflow.com/questions/70541720/jenkins-has-no-installation-candidate-error-while-trying-to-install-jenkins-on
+https://stackoverflow.com/questions/15174194/jenkins-host-key-verification-failed
+https://github.com/ome/devspace/issues/38
 
+1  sudo su
+2  ssh-keygen
+3  cat /var/lib/jenkins/.ssh/id_rsa.pub
+4  exit
+5  vim ~/.ssh/id_rsa
+6  ssh -oStrictHostKeyChecking=no host
+7  git ls-remote -h -- git@github.com:souzaleandror/jenkins-todo-list.git HEAD
+8  git ls-remote -h -- git@github.com:souzaleandror/jenkins-todo-list.git HEAD
+9  history
+
+1  cd /vagrant/scripts
+2  sudo ./jenkins.sh
+3  cp jenkins.sh jenkins.sh.ckp
+4  mv jenkins.sh.ckp jenkins.sh.bkp
+5  ls
+6  sudo apt update
+7  sudo apt install openjdk-17-jre
+8  curl -fsSL https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key | sudo tee /usr/share/keyrings/jenkins-keyring.asc > /dev/null
+9  echo deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc] https://pkg.jenkins.io/debian-stable binary/ | sudo tee /etc/apt/sources.list.d/jenkins.list > /dev/null
+10  vi jenkins.sh
+11  sudo ./jenkins.sh
+12  ip addr
+13  sudo cat /var/lib/jenkins/secrets/initialAdminPassword
+14  vi jenkins.sh
+15  ls
+16  cd /
+17  cdls
+18  ls
+19  cd vagrant/
+20  ls
+21  cd jenkins-todo-list/
+22  cat ~/.ssh/id_rsa
+23  git ls-remote -h -- git@github.com:souzaleandror/jenkins-todo-list.git HEAD
+24  cat ~/.ssh/id_rsa.pub
+25  cat ~/.ssh/id_rsa
+26  git ls-remote -h -- git@github.com:souzaleandror/jenkins-todo-list.git HEAD
+27  cat ~/.ssh/id_rsa
+28  ssh -T git@github.com
+29  git ls-remote -h -- git@github.com:souzaleandror/jenkins-todo-list.git HEAD
+30  cat ~/.ssh/known_hosts
+31  cat ~/.ssh/authorized_keys
+32  ssh-keyscan github.com >> ~/.ssh/known_hosts
+33  sudo su -s /bin/bash jenkins
+34  vi .ssh/authorized_keys
+35  sudo vim .ssh/authorized_keys
+36  vim ~/.ssh/
+37  git ls-remote -h -- git@github.com:souzaleandror/jenkins-todo-list.git HEAD
+38  sudo vim .ssh/authorized_keys
+39  sudo vim ~/.ssh/authorized_keys
+40  ls
+41  ssh -oStrictHostKeyChecking=no host
+42  history
 
 @01-O primeiro job com Jenkins
 
