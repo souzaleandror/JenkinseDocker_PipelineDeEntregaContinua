@@ -2,6 +2,28 @@
 
 Curso de Jenkins e Docker: Pipeline de entrega continua
 
+```
+Utils Command:
+
+sudo lsof -i:8080
+kill -9
+
+brew services start jenkins-lts
+brew services stop jenkins-lts
+brew services restart jenkins-lts
+
+php -S localhost:8000
+
+nginx -s reload
+nginx -t
+
+php -S localhost:8000
+
+brew install nginx
+brew install php
+```
+
+
 https://stackoverflow.com/questions/70541720/jenkins-has-no-installation-candidate-error-while-trying-to-install-jenkins-on
 https://stackoverflow.com/questions/15174194/jenkins-host-key-verification-failed
 https://github.com/ome/devspace/issues/38
