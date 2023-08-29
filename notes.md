@@ -516,3 +516,376 @@ Executar os scripts do Jenkins
 Configuração do GitHub
 Como fazer um versionamento básico do código do projeto
 Como configurar um job no Jenkins para acessar o GitHub
+
+#### 29/08/2023
+
+@02-Build com Docker e Jenkins
+
+@@01
+Introdução ao pipeline
+
+[00:00] Tudo bem pessoal? A gente vai começar agora a segunda aula.
+[00:04] E essa série de vídeos da segunda aula vai fazer a cobertura da seguinte etapa no pipeline: se nós olharmos aqui, essa parte de versionamento já está pronta. Então a aula 2 cobre a parte onde nós vamos fazer o build da nossa imagem automaticamente.
+
+[00:24] Primeiro eu vou mostrar para vocês manualmente como isso é feito e depois a gente vai fazer isso utilizando o Jenkins em conjunto com o Docker, criando a nossa imagem e fazendo o registro da imagem no Dockerhub.
+
+[00:41] Então, vamos pra próxima aula.
+
+@@02
+Entendendo o build manual
+
+O script que o instrutor segue durante a aula é o seguinte:
+# Passos para configurar a app e subir manualmente
+    # Criando o arquivo .env (temporário)
+        cd /vagrant/jenkins-todo-list/to_do/
+        vi .env
+            [config]
+            # Secret configuration
+            SECRET_KEY = 'r*5ltfzw-61ksdm41fuul8+hxs$86yo9%k1%k=(!@=-wv4qtyv'
+
+            # conf
+            DEBUG=True
+
+            # Database
+            DB_NAME = "todo_dev"
+            DB_USER = "devops_dev"
+            DB_PASSWORD = "mestre"
+            DB_HOST = "localhost"
+            DB_PORT = "3306"
+
+    # Instalando o venv
+        sudo pip3 install virtualenv nose coverage nosexcover pylint
+    # Criando e ativando o venv (dev)
+        cd ../    
+        virtualenv  --always-copy  venv-django-todolist
+        source venv-django-todolist/bin/activate
+        pip install -r requirements.txt
+    # Fazendo a migracao inicial dos dados
+        python manage.py makemigrations
+        python manage.py migrate
+    # Criando o superuser para acessar a app
+        python manage.py createsuperuser
+    # Repetir o processo de migracaoção para o ambiente de produção:
+        vi to_do/.env
+            [config]
+            # Secret configuration
+            SECRET_KEY = 'r*5ltfzw-61ksdm41fuul8+hxs$86yo9%k1%k=(!@=-wv4qtyv'
+
+            # conf
+            DEBUG=True
+
+            # Database
+            DB_NAME = "todo"
+            DB_USER = "devops"
+            DB_PASSWORD = "mestre"
+            DB_HOST = "localhost"
+            DB_PORT = "3306"
+
+    # Fazendo a migracao inicial dos dados
+        python manage.py makemigrations
+        python manage.py migrate
+    # Criando o superuser para acessar a app
+        python manage.py createsuperuser
+
+    # Verificar o ip do servidor
+        ip addr
+    # Rodando a app
+        python manage.py runserver 0:8000
+        http://192.168.33.10:8000COPIAR CÓDIGO
+[00:00] Bom pessoal, agora tá na hora da gente fazer o build manual da nossa aplicação. Porque que a gente vai fazer isso? Pra que quando a gente automatize toda construção, a gente consiga enxergar a diferença de velocidade e de agilidade de um processo pro outro.
+
+[00:15] Pra fazer o build, a aplicação é muito simples. Primeiro, dentro do meu diretório da aplicação, eu preciso criar um arquivo ".env". Que que esse arquivo ".env" contém? Vou pegar aqui um modelo dele. Basicamente, ele tem algumas configurações pra aplicação rodar, como por exemplo, o secret key que é utilizado pra fazer os hash de senha, por exemplo, nome de usuários de banco de dados, nome do banco de dados, a porta e onde o banco tá localizado.
+
+[00:51] Atentem-se pro seguinte: eu estou conectando do banco de dados de dev. E porque que eu tô criando esse arquivo? Vamos primeiro salvar o arquivo aqui. A gente usou o VI pra quem não tá muito acostumado. Entrou no arquivo, aperto o I, colo o conteúdo, Esc, :x. A gente salvou o arquivo aqui, se eu der um "ls -la" tá aqui o meu arquivo env.
+
+[01:14] Porque que a gente não coloca o arquivo env dentro da aplicação versionada? Porque isso vai pro GitHub, ou até, às vezes, pra um repositório privado. O problema é que o arquivo env contém as informações de conexão de banco, por exemplo, isso não pode ficar público.
+
+[01:30] Com o arquivo copiado, que que a gente faz agora? A gente vai instalar algumas dependências do Python com o PIP, que é o gerenciador de pacotes do Python. Mandei instalar, ele tá instalando, é rápida a instalação, ele busca nos repositórios e faz a instalação pra gente.
+
+[01:55] Legal, a instalação dos pacotes feita, o que eu vou fazer? Eu vou criar um Virtualenv pro Python, pra isolar a minha aplicação. Vocês tão percebendo o trabalho que dá fazer manual o build disso daqui. Então eu vou criar um Virtualenv, ele vai isolar os pacotes da minha aplicação. Legal, ele instalou os pacotes da minha aplicação e agora eu vou ativar o meu Virtualenv.
+
+[02:25] Legal, Virtualenv ativado, eu consigo ver pelo começo do bash agora. Então o que eu tenho que pedir pra ele fazer agora? Instalar todos os requerimentos da minha aplicação. Se eu der um cat nesse arquivo vocês vão ver que tem várias dependências. Então, pra isso, eu vou executar o pip install - r requirements.
+
+[02:44] Isso é legal ver, enquanto tá rodando, que tomar conta de uma aplicação, ou deployar uma aplicação, você não precisa, exatamente, configurar todo o ambiente dela manualmente porque a gente tá tendo muito trabalho pra fazer isso. O legal é a gente automatizar. Então as próximas aulas vão mostrar como que isso é aqui é feito de uma maneira invisível pra quem tá aplicando a Integração Contínua.
+
+[03:09] Normalmente quando a gente roda o pip install eventualmente ele tem algum problema de cache, é só rodar de novo, só pra validar a instalação, mas foi tudo instalado. Isso não é um erro de aplicação e sim um erro do próprio PIP mesmo, que quando a gente automatiza não aparece.
+
+[03:28] Legal, então a gente tá com as dependências instaladas, o que que a gente vai fazer agora? Tem um passo que a gente vai executar agora, uma sequência de passos na verdade, que é específico do Django. Como o nosso curso é de Jenkins a gente vai criar esse ambiente na mão na primeira vez, é uma vez só que a gente vai criar, que são as migrações de banco, que é onde ele vai criar as tabelas do banco de dados.
+
+[03:55] Isso não vai entrar na nossa Integração Contínua porque é específico do Python. Se você trabalha com Java você vai ter que lidar com isso na hora de criar a sua aplicação. Você pode automatizar esses passos, isso é possível, mas como o foco do curso não é Django a gente só vai criar a primeira vez. É uma vez só que a gente executa e não executa mais.
+
+[04:18] Então a gente vai rodar as migrações do banco, a gente vai criar as migrações do banco, baseado nos modelos e a gente vai migrar o banco. Então ele tá fazendo toda a configuração de tabelas e permissões, e agora o que eu tenho que fazer? Eu tenho que criar um super usuário, isso é específico do Django. É o usuário admin, o root do Django pra acessar as aplicações.
+
+[04:51] Então eu vou criar um usuário aqui com o nome alura, o endereço de email vai ser aluno@alura.com.br, a senha vai ser mestre123, vamos manter aquele padrãozinho mestre123 pra sempre lembrar. E o super usuário foi criado.
+
+[05:18] Bom, então agora tá na hora da gente ver a aplicação rodar, até agora a gente não viu como ela funciona, qual que é a carinha dela. A gente vai rodar um comando aqui que só é utilizado no ambiente de desenvolvimento, no pipeline nosso a gente vai usar outro que é para produção. Startei a aplicação.
+
+[05:39] Então agora que a gente já colocou a aplicação pra rodar, a gente vai usar o mesmo IP que a gente utilizou pra abrir o Jenkins, pra abrir a aplicação, porque eles estão rodando no mesmo servidor. Só que o que muda agora é a porta que, ao invés de ser a porta 8080, que é onde o Jenkins tá rodando, a gente vai usar a porta 8000. Aí a aplicação apareceu. O usuário e a senha a gente acabou de criar, alura, mestre123. Abrimos a aplicação aqui.
+
+[06:11] Pessoal, tem uma outra coisa que a gente vai fazer, primeiro a gente vai parar o nosso servidor aqui, que é o seguinte: tudo tá apontado pro banco de dev, a gente vai editar o nosso arquivo aqui e vai enxergar. Dentro do nosso arquivo de ambiente tá tudo apontado pra dev, só que a gente vai ter um ambiente de produção que é um outro schema e um outro usuário.
+
+[06:36] Então vamos rodar rapidinho as migrations pro usuário de produção. Então a gente apaga a parte dev, porque a gente já tem essa tabela criada, a senha é a mesma, a gente só vai rodar os migrations de novo, makemigrations, na verdade nem precisava porque já estavam criadas as migrações.
+
+[07:04] Agora o migrate vai fazer o que? Ele vai conectar no banco de produção, a gente trocou as tabelinhas lá e ele criou de novo. Isso é bem específico, só pra que na próxima etapa do build a gente não tenha problema. E a gente vai criar o super usuário da mesma maneira. Vamos criar os mesmos dados pra não ficar confuso, alura, aluno@alura.com.br, mestre123.
+
+[07:37] Legal, criou o usuário, a gente sobe a aplicação pra validar que tá tudo funcionando, atualiza aqui a aplicação. Logou, conectamos. Pra utilizar a aplicação é muito simples, você coloca o título da sua task, o texto, pode marcar como completa ou não, e dar um salvar, sua task tá aqui.
+
+[08:04] Bom pessoal, agora a gente acabou de ver o build manual, como ele é feito. Na próxima aula a gente vai acertar o último detalhe antes de colocar todo o nosso processo automatizado dentro do Jenkins. A gente se vê lá.
+
+@@03
+Comandos do build manual
+
+Sejam os seguintes comandos no build manual:
+python createsuperuser
+python migrate COPIAR CÓDIGO
+Qual a função deles, respectivamente?
+
+Criar o virtualenv para instalar as dependências
+ 
+Alternativa correta
+Migrar as alterações dos seus modelos; criar o principal usuário para acessar a aplicação
+ 
+Alternativa correta
+Criar o principal usuário para acessar a aplicação; migrar as alterações dos seus modelos
+ 
+Alternativa correta!
+
+@@04
+Configurando o daemon do Docker
+
+O script que o instrutor segue durante a aula é o seguinte:
+# Expor o deamon do docker
+    sudo mkdir -p /etc/systemd/system/docker.service.d/
+    sudo vi /etc/systemd/system/docker.service.d/override.conf
+        [Service]
+        ExecStart=
+        ExecStart=/usr/bin/dockerd -H fd:// -H tcp://0.0.0.0:2376
+    sudo systemctl daemon-reload
+    sudo systemctl restart docker.serviceCOPIAR CÓDIGO
+[00:00] Bom pessoal, agora é o seguinte, a gente vai começar a automatizar todo esse processo de build, pra isso a gente vai colocar a nossa aplicação pra rodar dentro de containers.
+
+[00:11] Lembrando que é extremamente importante vocês assistirem o curso de Docker que tem na Alura porque muitos dos conceitos que a gente vai usar aqui são explicados lá. Um conceito, especificamente, eu vou explicar pra vocês agora.
+
+[00:26] O Jenkins tá rodando na mesma máquina que o meu Docker tá rodando, o Docker foi instalado quando vocês subiram a máquina virtual. Vamos dar uma checada aqui primeiro, sudo docker ps. Ele exibiu aqui pra gente que não tem container nenhum mas ele tá rodando.
+
+[00:45] O Docker, apesar de estar rodando na mesma máquina, eventualmente eles poderiam estar rodando em máquinas distintas, pra isso a gente habilita o daemon do Docker pra que ele seja controlado remotamente. Isso não vem, por padrão, habilitado.
+
+[01:01] Então como é que a gente faz pra habilitar isso daí? É muito simples, a gente cria um diretório, esse diretório aqui /etc/systemd/system/docker.service.d/, e dentro desse cara a gente cria esse arquivo aqui, que é o override.conf, nesse arquivo eu vou falar pra ele o seguinte: você vai startar expondo o seu daemon na porta 2376.
+
+[01:43] O que que isso vai possibilitar? Que o meu Jenkins, mesmo não tendo o Docker instalado, eventualmente consiga controlar um Docker remoto. Isso serve pra várias aplicações, você não precisa controlar um parque de máquinas de 'n' Jenkins rodando slaves sendo que você consegue controlar tudo através do Master.
+
+[02:07] Então a gente vai salvar esse arquivo aqui, e agora o que que a gente vai fazer? Depois de ter configurado esse arquivo, nós vamos dar um reload no daemon dele e vamos restartar o serviço do Docker. Dessa maneira a gente habilitou o Docker a ser acessado de outras máquinas, nesse caso é a mesma, mas vocês entenderam.
+
+[02:34] Agora, porque que a gente fez tudo isso? Porque quando a gente criar agora os nossos jobs a gente tem um plugin do Docker dentro do Jenkins que vai poder acessar essa máquina e poder executar os comandos pra pegar toda a nossa aplicação e colocar dentro de container.
+
+[02:52] Essa aula a gente entendeu como expor o daemon do Docker, na próxima aula a gente vai alterar aquele nosso job, que a gente criou no começo, pra que ele faça o build dessa imagem automaticamente pra gente.
+
+[03:06] Eu espero vocês lá.
+
+@@05
+Docker daemon
+
+No servidor onde o Docker está instalado, qual o arquivo que criamos para possibilitar o controle remoto do Docker?
+
+/var/systemd/system/docker.service.d/override.conf
+ 
+Alternativa correta
+/etc/systemd/system/docker.service.d/override.conf
+ 
+Alternativa correta!
+Alternativa correta
+/etc/systemd/system/docker.service.d/docker-override.conf
+ 
+Alternativa correta
+/etc/init.d/system/docker.service.d/override.conf
+
+@@06
+Build da imagem
+
+O script que o instrutor segue durante a aula é o seguinte:
+# Sugested Plugins
+# Instalando os plugins
+    Gerenciar Jenkins -> Gerenciar Plugins -> Disponíveis
+        # docker
+    Install without restart -> Depois reiniciar o jenkins
+Gerenciar Jenkins -> Configurar o sistema -> Nuvem
+    # Name: docker
+    # URI: tcp://127.0.0.1:2376
+    # Enabled
+# This project is parameterized: 
+    DOCKER_HOST
+    tcp://127.0.0.1:2376
+# Voltar no job criado na aula anterior
+    # Manter a mesma configuracao do GIT para desenvolvimento
+    # Build step 1: Executar Shell
+# Validando a sintaxe do Dockerfile
+docker run --rm -i hadolint/hadolint < Dockerfile
+    # Build step 2: Build/Publish Docker Image
+        Directory for Dockerfile: ./
+        Cloud: docker
+        Image: rafaelvzago/django_todolist_image_buildCOPIAR CÓDIGO
+[00:00] E aí pessoal, beleza? Agora chegou a hora tão esperada de configurar o nosso job pra fazer o build automático da aplicação, dentro de um container. Apesar da explicação ser grande, a aplicação é muito simples.
+
+[00:16] Então vamos lá. Primeira coisa, a gente vai logar no nosso Jenkins e a gente vai instalar alguns plugins, na verdade a gente vai instalar um plugin agora que é necessário pra que isso funcione.
+
+[00:32] Então a gente vem em gerenciar Jenkins, gerenciar plugins, aqui a gente vem em disponíveis, que é o marketplace de plugins que o Jenkins tem, eu escrevo docker. Tá vendo aqui, esse aqui é o plugin do Docker. A gente vai clicar nesse carinha aqui pra instalar, vai mandar instalar e depois reiniciar. Ele vai instalar algumas dependências e, assim que terminar a instalação das dependências, a gente volta.
+
+[01:06] Legal, terminou a instalação, agora a gente vai mandar reiniciar o Jenkins pra que ele carregue esse plugin novo. Enquanto ele reinicia, uma explicação básica sobre esse plugin: nós vamos habilitar o daemon, que nós configuramos no servidor, dentro dessa configuração de plugin, pra que o meu Jenkins seja capaz de executar comandos Docker remotamente, nesse caso vai ser localmente mas poderia ser em qualquer servidor. Então assim que terminar de reiniciar a gente volta.
+
+[01:41] Então pessoal, enquanto instala e reinicia, só pra explicar o que a gente acabou de fazer: a gente instalou um client, um plugin do Docker, pra que ele possa acessar um servidor Docker e executar os comandos. Nesse caso vai estar na mesma máquina, mas a gente tá habilitando isso pra instalações e intervenções futuras. Então a gente vai esperar reiniciar, quando reiniciar a gente volta.
+
+[02:04] Pronto, reiniciou, então agora a gente loga novamente, vou marcar aqui pra ele me manter logado e eu tenho que fazer algumas configurações agora. Primeira coisa que eu vou fazer: eu vou vir aqui no Jenkins, Gerenciar Jenkins, Configurar o sistema, é a configuração básica do Jenkins, e aí lá no final da página eu tenho Nuvem, se você tiver usando em inglês vai estar escrito Cloud, e eu vou adicionar uma nova Nuvem.
+
+[02:44] O que que seria essa nova nuvem? São daemons que serão chamados. Basicamente assim, a gente tá instalando um plugin que vai chamar um daemon, então nessa parte ele tá aparecendo Docker aqui por que o plugin tá habilitado. É como o Jenkins interage com a Nuvem, nesse caso vai ser localmente mas poderia ser em qualquer lugar.
+
+[03:05] Então quando eu cliquei aqui ele falou o seguinte "Olha, qual que é o nome que você vai dar?", a gente vai dar de docker mesmo aí ele pede os detalhes, a gente vai fazer uma configuração muito simples que é, onde ele pede qual que é a URI de conexão, a gente vai colocar tcp, o IP do servidor que tem o daemon exposto e a porta. Nesse caso eu coloquei 127.0.0.1 porque tá rodando nessa máquina. E aí eu vou a testar conexão.
+
+[03:36] Olha lá, ele encontrou a versão 1809 do meu Docker rodando e o daemon exposto ou seja, aquela configuração nossa funcionou e agora o nosso Jenkins tá habilitado pra executar comandos em Docker nesse servidor.
+
+[03:51] A gente vai salvar e chegou a parte de terminar o nosso build, fazer que o nosso job construa a nossa imagem automaticamente. Como é que a gente vai fazer isso? A gente vai clicar aqui dentro do job, que nós já tínhamos criado, configurar, e nós vamos adicionar dois passos de build.
+
+[04:16] Como é que o Jenkins funciona? Aqui embaixo eu tenho os meus build steps, que são os passos do meu build, eu posso ter quantos passos eu quiser. Primeiro passo que eu vou configurar é um passo muito simples que vai fazer uma checagem muito rápida de como é que o meu Dockerfile está, se ele está ou não está de acordo com as últimas convenções, ele vai fazer um linter do meu Docker.
+
+[04:45] Pra isso, que que eu faço? Eu vou adicionar um Build step pra executar um shell e, nessa execução do shell, que que eu vou fazer? Eu vou colar só isso aqui. Vou tirar o espaço adicional aqui. O que ele tá fazendo? Ele tá usando uma imagem chamada hadolint que ele vai fazer o linter do meu Dockerfile.
+
+[05:11] De novo, se você tá em dúvida do que o Dockerfile faz e exatamente como a gente constrói, tem o curso de Docker da Alura pra vocês assistirem.
+
+[05:21] Agora, se esse step faz passar, ou seja se não falhar, eu vou executar um segundo Buildstep que é o build da minha imagem do Docker, que agora sim eu vou automatizar tudo.
+
+[05:36] Primeiro ele me pergunta onde que o meu Dockerfile está. Só para relembrar, dentro do root aqui da minha aplicação eu tenho meu Dockerfile que, se eu olhar aqui o conteúdo dele rapidinho, basicamente ele tá copiando os meus arquivos pra dentro de um diretório, copiando o arquivo de requerimentos, rodando o pip install, que nós fizemos tudo isso na mão, expondo a porta 8000 e executando a aplicação na porta 8000.
+
+[06:12] Lembrando que quando eu construo a imagem, não necessariamente eu estou rodando meu container. Se eu não pedir pra rodar eu só vou até a imagem lá.
+
+[06:20] Então vamos lá. A primeira coisa, vamos ver quantas imagens eu tenho aqui. sudo docker images, eu tenho só o hadolint, então tá zerada a minha instalação. Então o meu Dockerfile tá dentro do próprio diretório, porque quando ele dá o clone pra este diretório ele vai jogar dentro todos os arquivos. E aí ele vai perguntar qual que é o Cloud que vai construir, vai ser o Cloud do Docker que a gente já montou.
+
+[06:49] E agora eu preciso dar um nome pra essa imagem, a gente vai usar esse nome aqui: django_todolist_image_build, é um nome de uma imagem que a nossa aplicação vai ter. E agora eu vou dar um salvar.
+
+[07:12] Tem um detalhe que a gente precisa voltar a fazer que é: dentro do meu Jenkins eu preciso habilitar o meu plugin do Docker porque eu só configurei o daemon. Então como é que eu faço isso? Eu vou lá embaixo em Cloud, Cloud details e marco o enable. Se eu não fizer isso, esse Cloud provider, que ele vai usar, não vai funcionar, eu preciso habilitar, ele vai exibir naquela lista mas ele não vai estar habilitado. Feito isso é simples agora, eu venho aqui no meu job e mando construir.
+
+[07:52] Então, resumindo, ele vai clonar o meu repositório, vai ler o meu Dockerfile, vai construir a minha imagem e vai registrar ela localmente. Então, assim que terminar a gente volta.
+
+[08:07] Bom, o build acabou, foi um build com sucesso. Se a gente chegar na máquina agora e digitar sudo docker images, nossa imagem foi criada. Então quais são os próximos passos agora? É aprimorar esse nosso build, fazer alguns tratamentos de erro pra ver se não tem nada que vai quebrar o nosso código, e colocar nossa aplicação pra rodar da mesma maneira, automatizada sem que a gente tenha que ficar configurando os jobs na mão.
+
+[08:43] Eu vejo vocês na próxima.
+
+@@07
+Construindo imagens para o Docker
+
+Na construção de imagens para o Docker, recomenda-se o uso de um linter. Por quê?
+
+Para garantir a utilização das melhores práticas na criação de um Dockerfile
+ 
+Alternativa correta!
+Alternativa correta
+Com isso, garantimos que a imagem será registrada com sucesso no Docker Hub
+ 
+Alternativa correta
+Pois com o linter, garantimos que todos os comandos serão executados corretamente
+
+08
+Consolidando o seu conhecimento
+
+Chegou a hora de você seguir todos os passos realizados por mim durante esta aula. Caso já tenha feito, excelente. Se ainda não, é importante que você execute o que foi visto nos vídeos para poder continuar com a próxima aula.
+1) Configure a sua aplicação e suba-a manualmente. Você pode se guiar pelo script que o instrutor seguiu durante a aula:
+
+# Passos para configurar a app e subir manualmente
+    # Criando o arquivo .env (temporário)
+        cd /vagrant/jenkins-todo-list/to_do/
+        vi .env
+            [config]
+            # Secret configuration
+            SECRET_KEY = 'r*5ltfzw-61ksdm41fuul8+hxs$86yo9%k1%k=(!@=-wv4qtyv'
+
+            # conf
+            DEBUG=True
+
+            # Database
+            DB_NAME = "todo_dev"
+            DB_USER = "devops_dev"
+            DB_PASSWORD = "mestre"
+            DB_HOST = "localhost"
+            DB_PORT = "3306"
+
+    # Instalando o venv
+        sudo pip3 install virtualenv nose coverage nosexcover pylint
+    # Criando e ativando o venv (dev)
+        cd ../    
+        virtualenv  --always-copy  venv-django-todolist
+        source venv-django-todolist/bin/activate
+        pip install -r requirements.txt
+    # Fazendo a migracao inicial dos dados
+        python manage.py makemigrations
+        python manage.py migrate
+    # Criando o superuser para acessar a app
+        python manage.py createsuperuser
+    # Repetir o processo de migracaoção para o ambiente de produção:
+        vi to_do/.env
+            [config]
+            # Secret configuration
+            SECRET_KEY = 'r*5ltfzw-61ksdm41fuul8+hxs$86yo9%k1%k=(!@=-wv4qtyv'
+
+            # conf
+            DEBUG=True
+
+            # Database
+            DB_NAME = "todo"
+            DB_USER = "devops"
+            DB_PASSWORD = "mestre"
+            DB_HOST = "localhost"
+            DB_PORT = "3306"
+
+    # Fazendo a migracao inicial dos dados
+        python manage.py makemigrations
+        python manage.py migrate
+    # Criando o superuser para acessar a app
+        python manage.py createsuperuser
+
+    # Verificar o ip do servidor
+        ip addr
+    # Rodando a app
+        python manage.py runserver 0:8000
+        http://192.168.33.10:8000COPIAR CÓDIGO
+2) Configure o daemon do Docker. Você pode se guiar pelo script que o instrutor seguiu durante a aula:
+
+# Expor o deamon do docker
+    sudo mkdir -p /etc/systemd/system/docker.service.d/
+    sudo vi /etc/systemd/system/docker.service.d/override.conf
+        [Service]
+        ExecStart=
+        ExecStart=/usr/bin/dockerd -H fd:// -H tcp://0.0.0.0:2376
+    sudo systemctl daemon-reload
+    sudo systemctl restart docker.serviceCOPIAR CÓDIGO
+3) Faça o build da sua imagem. Você pode se guiar pelo script que o instrutor seguiu durante a aula:
+
+# Sugested Plugins
+# Instalando os plugins
+    Gerenciar Jenkins -> Gerenciar Plugins -> Disponíveis
+        # docker
+    Install without restart -> Depois reiniciar o jenkins
+Gerenciar Jenkins -> Configurar o sistema -> Nuvem
+    # Name: docker
+    # URI: tcp://127.0.0.1:2376
+    # Enabled
+# This project is parameterized: 
+    DOCKER_HOST
+    tcp://127.0.0.1:2376
+# Voltar no job criado na aula anterior
+    # Manter a mesma configuracao do GIT para desenvolvimento
+    # Build step 1: Executar Shell
+# Validando a sintaxe do Dockerfile
+docker run --rm -i hadolint/hadolint < Dockerfile
+    # Build step 2: Build/Publish Docker Image
+        Directory for Dockerfile: ./
+        Cloud: docker
+        Image: rafaelvzago/django_todolist_image_build
+
+Continue com os seus estudos, e se houver dúvidas, não hesite em recorrer ao nosso fórum!
+
+@@09
+O que aprendemos?
+
+Nesta aula, aprendemos:
+Como fazer o build e deploy manual da aplicação
+Como configurar o daemon do Docker
+Como configurar o Jenkins e instalar os módulos necessários
+Como configurar um job e gerar uma imagem
