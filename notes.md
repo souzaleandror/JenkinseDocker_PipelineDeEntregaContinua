@@ -911,3 +911,280 @@ Como fazer o build e deploy manual da aplicação
 Como configurar o daemon do Docker
 Como configurar o Jenkins e instalar os módulos necessários
 Como configurar um job e gerar uma imagem
+
+####  31/08/2023 
+
+@03-Ambiente de Produção e Desenvolvimento
+
+@@01
+Preparação dos ambientes
+
+O script que o instrutor segue durante a aula é o seguinte:
+# Instalar o plugin Config File Provider
+
+# Configurar o Managed Files para Dev
+    # Name : .env-dev
+        [config]
+        # Secret configuration
+        SECRET_KEY = 'r*5ltfzw-61ksdm41fuul8+hxs$86yo9%k1%k=(!@=-wv4qtyv'
+        # conf
+        DEBUG=True
+        # Database
+        DB_NAME = "todo_dev"
+        DB_USER = "devops_dev"
+        DB_PASSWORD = "mestre"
+        DB_HOST = "localhost"
+        DB_PORT = "3306"
+
+#Configurar o Managed Files para Prod
+    # Name: .env.-prod
+        [config]
+        # Secret configuration
+        SECRET_KEY = 'r*5ltfzw-61ksdm41fuul8+hxs$86yo9%k1%k=(!@=-wv4qtyv'
+        # conf
+        DEBUG=False
+        # Database
+        DB_NAME = "todo"
+        DB_USER = "devops"
+        DB_PASSWORD = "mestre"
+        DB_HOST = "localhost"
+        DB_PORT = "3306"
+
+# No job: jenkins-todo-list-principal importar o env de dev para teste:
+
+    Adicionar passo no build: Provide configuration Files
+    File: .env-dev
+    Target: ./to_do/.env
+
+    Adicionar passo no build: Executar Shell
+
+# Criando o Script para Subir o container com o arquivo de env e testar a app:
+    #!/bin/sh
+
+    # Subindo o container de teste
+    docker run -d -p 82:8000 -v /var/run/mysqld/mysqld.sock:/var/run/mysqld/mysqld.sock -v /var/lib/jenkins/workspace/jenkins-todo-list-principal/to_do/.env:/usr/src/app/to_do/.env --name=todo-list-teste django_todolist_image_build
+
+    # Testando a imagem
+    docker exec -i todo-list-teste python manage.py test --keep
+    exit_code=$?
+
+    # Derrubando o container velho
+    docker rm -f todo-list-teste
+
+    if [ $exit_code -ne 0 ]; then
+        exit 1
+    fiCOPIAR CÓDIGO
+[00:00] Oi pessoal, tudo bem? Nessa aula a gente vai entender como separar os ambientes da nossa aplicação. Nesse caso nós vamos utilizar dois ambientes que é o ambiente de desenvolvimento e o ambiente de produção.
+
+[00:13] O que diferencia um ambiente do outro? É somente o arquivo .env. Se vocês se lembram, na aula que nós criamos o build manual, esse arquivo .env contém o endereço do banco, usuário, senha, algumas chaves de configuração de criptografia. Então a gente tem que separar esses arquivos porque ele não está versionado no nosso GitHub. Isso é muito importante porque é o que garante a segurança da nossa aplicação.
+
+[00:41] E ele vai ser utilizado em tempo de execução. Como é que a gente faz isso dentro do Jenkins? Nós vamos precisar de um plugin chamado Config File Provider. Então a gente vai fazer a instalação dele agora. Dentro de gerenciar plugins, disponíveis, a gente vai digitar config file provider e vamos clicar pra instalar esse plugin. Ele vai instalar, a instalação dele é muito rápida.
+
+[01:11] E agora a gente vai fazer a configuração desse plugin. Como que nós configuramos esse plugin? Dentro de "Gerenciar o Jenkins" nós vamos procurar uma entrada chamada "Managed files" dentro dessa configuração nós vamos criar dois arquivos.
+
+[01:27] O primeiro deles vai ser um arquivo custom, se vocês olharem tem outros padrões aqui pré-determinados, aí vocês podem utilizar de acordo com a aplicação de vocês, nesse caso a gente vai criar um arquivo customizado. Ele vai me dar um ID, esse ID vai ser importante lá na frente quando a gente for configurar os nossos jobs. Mas, por enquanto, a gente vai clicar em submit, ele vai pedir um nome, vai ser .env-dev, e o conteúdo.
+
+[01:58] No caso de desenvolvimento o conteúdo é esse aqui que a gente tá apontando pro banco de desenvolvimento. Vamos dar um submit.
+
+[02:09] E agora a gente vai criar o arquivo de prod que é um arquivo customizado, um outro ID, isso aí é automático. O nome dele vai ser .env-prod e o conteúdo vai ser quase o mesmo, a diferença é que agora nós vamos apontar pro banco de produção.
+
+[02:32] Então configurado, clicamos em submit. Vamos voltar lá no nosso job pra puxar esses arquivos quando necessário. Então, dentro desse job principal, qual vai ser a próxima etapa nossa dentro desse pipeline? Vai ser fazer o teste da aplicação. Nesse caso, pra testar, nós vamos utilizar o ambiente de Dev, o arquivo .env de dev. Nunca se deve apontar testes pra produção.
+
+[03:05] Pra isso, dentro do job, a gente vai em Ambiente de build e vai ter uma opção chamada Provide Configuration files, clicando aqui ele vai mostrar um drop down com os dois arquivos criados, nesse caso a gente vai usar o arquivo de dev.
+
+[03:24] Qual que é o target? Aonde ele vai salvar esse arquivo? Lembra que eu comentei que cada job tem um diretório dentro do Jenkins? Nós vamos salvar na raiz desse job com o nome .env, que é aquele arquivo que nós criamos lá quando fizemos o build manual. Só que nesse caso eu não preciso me preocupar em colocar ele dentro de "todo" na nossa aplicação, por quê? Nós, quando executarmos o container, ele vai receber como parâmetro de volume esse arquivo e aí ele vai subir a aplicação apontando.
+
+[04:02] Então agora, que nós já temos o nosso arquivo de ambiente, tá na hora da gente rodar o teste da nossa aplicação. Pra isso, depois do linter ter rodado, ou seja, esse primeiro teste ter passado que o nosso Dockerfile é saudável e o build ter acontecido com esse nome de imagem, nós vamos adicionar um próximo step que vai ser um shell script, e esse shell vai ter esse conteúdo aqui. Vamos copiar lá e eu vou explicar pra vocês o que ele faz.
+
+[04:43] Então basicamente, vamos expandir um pouquinho aqui pra ficar mais fácil de enxergar, eu vou rodar um container na porta 82. Porque que eu tô rodando na porta 82? Por que produção vai rodar na porta 80, que é a porta padrão; desenvolvimento vai rodar na porta 81, a gente vai chegar lá ainda, vai ser um job que vai criar só nossa aplicação rodando pra devs acessarem; e, pra teste, eu vou subir um container muito rápido na porta 82, passando dois parâmetros de volume.
+
+[05:18] O primeiro é o volume do sock do MySQL, como o contêiner é imutável, ele não tem a capacidade de acessar o sock dele mesmo e, como eu tô utilizando um banco externo, eu tô mapeando pra minha aplicação que o sock, dentro de /var/run/mysqld/mysqld.sock, vai estar localmente localizado no mesmo lugar e não dentro do container. Sem essa opção nossa aplicação não vai funcionar.
+
+[05:49] E tô passando um outro parâmetro pra ele, de volume, que é dentro de /var/lib/jenkins/workspace. Olha o nosso diretório aqui do job, lembra que eu falei que o Jenkins tem um diretório pra cada job? E eu tenho um arquivo de ambiente que a gente vai colocar aqui só o .env porque nós salvamos ele localmente e na raiz do nosso projeto.
+
+[06:14] Agora passamos mais um último parâmetro que é o nome do nosso container, que seria todo-list-teste e a imagem. Reparem que eu tenho, como parâmetro último aqui, a imagem que eu vou fazer o build, o problema é que ainda nós não temos essa configuração definida. A gente vai entender daqui a pouquinho como funciona. De momento, que que nós vamos fazer? Copiar o nome da imagem e colocar a imagem dentro desse valor.
+
+[07:03] Então agora temos todo o comando de run definido, ele vai subir esse container. Com esse container em execução, o que que a gente vai fazer agora? Nós vamos rodar o teste unitário da nossa aplicação, nesse caso é um teste bem simples que é para demonstrar pra vocês como funciona esse step. No caso de vocês, nas aplicações do dia-a-dia, os testes podem mudar, mas nesse caso é assim que funciona.
+
+[07:33] Como é que ele executa o teste? Ele vai dar um exec nesse container todo-list-teste, que nós acabamos de subir, e passar um comando "python manage.py test". Eu tenho, dentro do meu código fonte, um arquivo de teste que vai testar se a minha aplicação tá saudável.
+
+[07:54] Então aqui olha, se nós pegarmos o exit_code e ele não for igual a zero, qualquer coisa diferente de zero, então eu vou falhar esse step. Esse step falhando, o meu pipeline vai falhar. Feito isso, nós vamos salvar e agora nós vamos construir o nosso projeto.
+
+[08:20] Vamos dar uma olhadinha aqui como é que tá os logs de execução. Olha, então enquanto ele tá construindo, só pra vocês entenderem o que tá acontecendo, ele puxou os arquivos lá do meu repositório e aqui ele tá copiando o arquivo de env, o env-dev, pra .env, por isso que a gente mapeou daquela maneira. Ele tá fazendo o build da minha imagem e, agora, assim que ele terminar o build a gente volta.
+
+[08:53] Bom, terminou e, se a gente olhar os logs aqui, ele executou um teste e esse teste foi com sucesso. Então agora o nosso job já tá fazendo os testes puxando a configuração de ambiente.
+
+[09:10] Na próxima aula a gente vai aprender como passar parâmetros para outros jobs e com isso a gente vai conseguir construir tanto nosso ambiente de desenvolvimento quanto nosso ambiente de produção. Beleza, a gente se vê lá.
+
+@@02
+Ambientes de deploy
+
+Considerando a abordagem utilizada para definir a configuração da aplicação nos ambientes de desenvolvimento e produção, escolha a alternativa que justifica tal escolha:
+
+Nada justifica tal escolha
+ 
+Alternativa correta
+Apesar da escolha de separar os ambientes por arquivo de configuração, recomenda-se rodar os testes sistêmicos no banco de dados de produção
+ 
+Alternativa correta
+A abordagem escolhida permite que a mesma imagem construída no processo seja utilizada para testes, validações e também para rodar em produção, visto que o arquivo .env de cada ambiente é passado na execução do container
+ 
+Alternativa correta!
+Alternativa correta
+Seria mais interessante construir a imagem com o arquivo de configuração de ambiente
+
+@@03
+Push da imagem para Docker Hub
+
+O script que o instrutor segue durante a aula é o seguinte:
+# Instalar o plugin: Parameterized Trigger 
+
+# Modificar o Job para startar com 2 parametros:
+    # Geral:
+    Este build é parametrizado com 2 parametros de string
+        Nome: image
+        Valor padrão: <seu-usuario-no-dockerhub>/django_todolist_image_build
+
+        Nome: DOCKER_HOST
+        Valor padrão: tcp://127.0.0.1:2376
+
+# No build step: Build / Publish Docker Image
+    # Mudar o nome da imagem para: <seu-usuario-no-dockerhub>/django_todolist_image_build
+    # Marcar: Push Image e configurar **suas credenciais** no dockerhub
+
+# Mudar no job de teste a imagem para: ${image}
+    docker run -d -p 82:8000 -v /var/run/mysqld/mysqld.sock:/var/run/mysqld/mysqld.sock -v /var/lib/jenkins/workspace/jenkins-todo-list-principal/to_do/.env:/usr/src/app/to_do/.env --name=todo-list-teste ${image}COPIAR CÓDIGO
+[00:00] Olá pessoal, tudo bem? Nessa aula a gente vai aprender a trabalhar com parâmetros, como que nós passamos parâmetros de um job, pra outro job. Pra isso nós vamos ter que instalar um novo plugin.
+
+[00:14] Então a gente vem em "Gerenciar o Jenkins", "Gerenciar plugins", "Disponíveis", e nós vamos procurar esse plugin aqui. Esse plugin vai ser o plugin que a gente vai utilizar pra passar parâmetros. Então nós vamos clicar aqui em instalar e assim que a instalação terminar a gente volta.
+
+[00:37] Legal, a instalação acabou. Então vamos voltar lá no nosso job, configurar isso aqui. Então a gente vem em Jenkins, no nosso job, e configurar. Pra esse job, ele em si não precisa de parâmetros pra execução porque ele vai construir a imagem, mas ele vai passar parâmetros pra um próximo de job que é o que vai subir a aplicação em dev. Pra isso eu preciso pré-definir esses parâmetros agora.
+
+[01:06] Como é que eu faço? Nós clicamos aqui, "Este build é parametrizado", e nós vamos criar dois parâmetros pra ele. O primeiro parâmetro vai ser o seguinte: parâmetro string, o nome dele vai ser image, que vai ser a imagem que nós vamos construir. Se nós olharmos aqui embaixo, nós temos o nome de uma imagem na hora que nós construímos o container. Então a gente vai copiar essa imagem aqui e vai passar pra cá.
+
+[01:44] Colamos a imagem aqui e nós temos que fazer uma alteração nesse valor padrão, porque? Agora a gente vai aprender a registrar essa imagem lá no Docker Hub. Pra isso, primeiro vamos configurar o valor aqui do nome da imagem, no nosso caso vai ser aluracursos/ o nome da imagem. Vamos colocar ele aqui em minúsculo.
+
+[02:15] Nós vamos, na próxima aula, aprender a configurar esse repositório. Feito isso, nós vamos adicionar um outro parâmetro que é um parâmetro de string pra que eu passe pro próximo job. Esse parâmetro vai ser DOCKER_HOST, isso é só para garantir que o próximo job execute no mesmo servidor que o primeiro job executou os builds. Então, pra isso, nós passamos o valor tcp e o IP do servidor. E agora nós clicamos em aplicar.
+
+[02:55] Bom, salvamos agora os parâmetros. Nós temos que fazer duas configurações pra enviar essa imagem pro registro agora. A primeira é, aqui no processo de build da imagem, nós vamos marcar uma opção chamada Push image e ele vai jogar essa imagem pra um registro. Pra qual o registro? Depende das credenciais que a gente utilizar.
+
+[03:19] Então nós vamos vir aqui, vamos clicar aqui em Add dentro de Jenkins. E aqui é muito simples, ele vai pedir um usuário e uma senha, então nós vamos colocar o usuário aluracursos e, nesse nosso caso, a senha é inserida aqui de acordo com a configuração da sua conta lá no Docker Hub. Desse jeito, vamos colocar assim o ID dele como dockerhub.
+
+[03:55] Por padrão, o job vai fazer o push da imagem direto pro Docker Hub. Como que ele sabe que é direto pro Docker Hub? Porque o daemon que tá rodando lá no meu servidor, onde o Docker foi exposto, tá configurado pro registro padrão que é o Docker Hub. Se você na sua empresa configurou o seu docker pra fazer o push pra um outro registro, um registro privado por exemplo, automaticamente ele vai pro registro privado já que eu tô acessando o Cloud do Docker instalado.
+
+[04:24] Então, feito isso, eu vou dar uma description aqui chamada dockerhub, só pra gente colocar um valor e adicionar. E agora, se eu clicar aqui no dropdown, eu tenho o aluracursos pro Docker Hub.
+
+[04:41] Então a última configuração que a gente tem que fazer, depois de colocar as credenciais, é mudar a imagem que vai ser aluracursos/ o nome dessa imagem. Por que a gente faz isso? Porque, basicamente, eu tô indo ao Docker Hub registrar uma imagem, se eu não colocar qual é o usuário e debaixo de qual usuário ele não funciona.
+
+[05:04] Então agora a gente dá um salvar e manda construir com parâmetros. Ele traz os parâmetros default pra gente, que o próximo job vai utilizar, e eu dou um construir. Ele tá agendando a construção do job e, assim que a gente terminar o build, a gente volta.
+
+[05:25] Legal, ele acabou o build da imagem. Vamos dar uma olhadinha lá no Docker Hub pra ver imagem registrada? Então a gente vai em "hub.docker.com/u/aluracursos". Então ele abriu aqui o Docker Hub e eu tenho a imagem que a gente acabou de fazer o push dela.
+
+[05:47] Qual é a vantagem agora? Qualquer um dentro da minha companhia, se o registro for privado, ou nesse caso qualquer pessoa que tenha acesso ao Docker Hub consegue fazer o pull dessa imagem.
+
+[05:58] Legal, agora na próxima aula nós vamos configurar um novo job que vai fazer o run dessa imagem pro desenvolvedor poder acessar a aplicação. A gente se vê lá.
+
+@@04
+Registrando a nossa imagem
+
+Qual a vantagem de registrar a imagem no Docker Hub no início do pipeline?
+
+A principal vantagem é que a imagem com a aplicação 100% funcional estará sempre disponível
+ 
+Alternativa correta
+Que, após registrar a imagem, qualquer um com acesso ao domínio pode baixar e rodar a aplicação
+ 
+Alternativa correta! Devemos construir somente uma vez a imagem no pipeline.
+Alternativa correta
+Para garantir que o time de desenvolv
+
+05
+Consolidando o seu conhecimento
+
+Chegou a hora de você seguir todos os passos realizados por mim durante esta aula. Caso já tenha feito, excelente. Se ainda não, é importante que você execute o que foi visto nos vídeos para poder continuar com a próxima aula.
+1) Prepare os seus ambientes. Você pode se guiar pelo script que o instrutor seguiu durante a aula:
+
+# Instalar o plugin Config File Provider
+
+# Configurar o Managed Files para Dev
+    # Name : .env-dev
+        [config]
+        # Secret configuration
+        SECRET_KEY = 'r*5ltfzw-61ksdm41fuul8+hxs$86yo9%k1%k=(!@=-wv4qtyv'
+        # conf
+        DEBUG=True
+        # Database
+        DB_NAME = "todo_dev"
+        DB_USER = "devops_dev"
+        DB_PASSWORD = "mestre"
+        DB_HOST = "localhost"
+        DB_PORT = "3306"
+
+# Configurar o Managed Files para Prod
+    # Name: .env.-prod
+        [config]
+        # Secret configuration
+        SECRET_KEY = 'r*5ltfzw-61ksdm41fuul8+hxs$86yo9%k1%k=(!@=-wv4qtyv'
+        # conf
+        DEBUG=False
+        # Database
+        DB_NAME = "todo"
+        DB_USER = "devops"
+        DB_PASSWORD = "mestre"
+        DB_HOST = "localhost"
+        DB_PORT = "3306"
+
+# No job: jenkins-todo-list-principal importar o env de dev para teste:
+
+    Adicionar passo no build: Provide configuration Files
+    File: .env-dev
+    Target: ./to_do/.env
+
+    Adicionar passo no build: Executar Shell
+
+# Criando o Script para Subir o container com o arquivo de env e testar a app:
+    #!/bin/sh
+
+    # Subindo o container de teste
+    docker run -d -p 82:8000 -v /var/run/mysqld/mysqld.sock:/var/run/mysqld/mysqld.sock -v /var/lib/jenkins/workspace/jenkins-todo-list-principal/to_do/.env:/usr/src/app/to_do/.env --name=todo-list-teste django_todolist_image_build
+
+    # Testando a imagem
+    docker exec -i todo-list-teste python manage.py test --keep
+    exit_code=$?
+
+    # Derrubando o container velho
+    docker rm -f todo-list-teste
+
+    if [ $exit_code -ne 0 ]; then
+        exit 1
+    fiCOPIAR CÓDIGO
+2) Faça o push da sua imagem para o Docker Hub. Você pode se guiar pelo script que o instrutor seguiu durante a aula:
+
+# Instalar o plugin: Parameterized Trigger 
+
+# Modificar o Job para startar com 2 parametros:
+    # Geral:
+    Este build é parametrizado com 2 parametros de string
+        Nome: image
+        Valor padrão: <seu-usuario-no-dockerhub>/django_todolist_image_build
+
+        Nome: DOCKER_HOST
+        Valor padrão: tcp://127.0.0.1:2376
+
+# No build step: Build / Publish Docker Image
+    # Mudar o nome da imagem para: <seu-usuario-no-dockerhub>/django_todolist_image_build
+    # Marcar: Push Image e configurar **suas credenciais** no dockerhub
+
+# Mudar no job de teste a imagem para: ${image}
+    docker run -d -p 82:8000 -v /var/run/mysqld/mysqld.sock:/var/run/mysqld/mysqld.sock -v /var/lib/jenkins/workspace/jenkins-todo-list-principal/to_do/.env:/usr/src/app/to_do/.env --name=todo-list-teste ${image}
+
+Continue com os seus estudos, e se houver dúvidas, não hesite em recorrer ao nosso fórum!
+
+06
+O que aprendemos?
+
+Nesta aula, aprendemos:
+Como separar os ambientes da aplicação
+Como fazer a mudança entre os ambientes de desenvolvimento e produção
+Como parametrizar um job
+Como criar um job para registrar uma imagem no Docker Hub
