@@ -1523,3 +1523,379 @@ Instalar e configurar a aplicação Jenkins CI no Slack
 Instalar e configurar o plugin Slack Notification no Jenkins
 Uma introdução a processos contínuos com Groovy
 A definir um pipeline, criando um job que, entre os seus passos, vai rodar a aplicação e notificar o usuário no Slack
+
+
+#### 01/09/2023
+
+@05-Usando deploy com aprovação
+
+@@01
+Job de produção
+
+O script que o instrutor segue durante a aula é o seguinte:
+# Criar o job para colocar a app em producao:
+    Nome: todo-list-producao
+    Tipo: Freestyle
+    # Este build é parametrizado com 2 Builds de Strings:
+        Nome: image
+        Valor padrão: - Vazio, pois o valor sera recebido do job anterior.
+
+        Nome: DOCKER_HOST
+        Valor padrão: tcp://127.0.0.1:2376
+
+    # Ambiente de build > Provide configuration files
+        File: .env-prod
+        Target: .env
+
+    # Build > Executar shell
+        #Execute shell
+        #!/bin/sh
+        { 
+            docker run -d -p 80:8000 -v /var/run/mysqld/mysqld.sock:/var/run/mysqld/mysqld.sock -v /var/lib/jenkins/workspace/todo-list-producao/.env:/usr/src/app/to_do/.env --name=django-todolist-prod $image:latest
+
+        } || { # catch
+            docker rm -f django-todolist-prod
+            docker run -d -p 80:8000 -v /var/run/mysqld/mysqld.sock:/var/run/mysqld/mysqld.sock -v /var/lib/jenkins/workspace/todo-list-producao/.env:/usr/src/app/to_do/.env --name=django-todolist-prod $image:latest
+        }    
+
+Ações de pós-build > Slack Notifications: Notify Success e Notify Every FailureCOPIAR CÓDIGO
+[00:00] Tudo bem pessoal? Vamos continuar agora com o nosso pipeline, só pra gente recapitular aonde a gente parou.
+
+[00:07] Primeiro a gente fez a parte do build da imagem, nós já fizemos a parte de deployar a imagem pro ambiente de desenvolvimento. Agora é a etapa da gente deployar em produção.
+
+[00:22] Qual que é a diferença de desenvolvimento pra produção? Desenvolvimento muda o arquivo .env pra você conectar no banco de desenvolvimento. Produção é a mesma coisa. Então, o que nós vamos fazer agora? Nós vamos criar um job pra fazer o deploy em produção, utilizando o arquivo de configuração pra produção.
+
+[00:43] Vale ressaltar que quando a gente fala de ambiente de produção cada empresa tem a sua política, cada projeto. Normalmente esse deploy não é feito automaticamente, a não ser que você tenha uma política muito bem estruturada de responsabilidades, entre times de desenvolvimento e produção. Nesse nosso caso a gente vai criar o job primeiro, depois nós vamos colocar uma decisão pro usuário. "Depois de deployar em desenvolvimento você quer colocar em produção, sim ou não?"
+
+[01:11] Então vamos lá. Vindo pro Jenkins aqui, a gente vai criar um novo job com o nome todo-list-producao e esse job vai ser free-style, a gente vai criar novamente um free-style. Então que que a gente precisa fazer aqui para que esse job funcione? Primeiro a gente tem que avisar que ele é parametrizado. E quais são os parâmetros que ele vai receber? O DOCKER_HOST, que a gente já tem o valor aqui, e também a image que vai estar vazia porque quem vai passar essa informação é o job anterior.
+
+[01:59] Como eu falei para vocês, depois do deploy de desenvolvimento vai ter opção pro usuário "Você quer ou não quer pôr em produção?", se ele quiser o job vai passar o nome da imagem nova pra ele. Então o valor padrão vai estar vazio.
+
+[02:12] Depois disso a gente vai ter que configurar como que as variáveis de ambiente vão ser trabalhadas nesse job. É muito simples, a gente vem aqui embaixo e seleciona "Provide Configuration files". Quando vocês selecionarem ele vai dar aquele dropdown, que a gente já viu uma vez, que mostra qual dos arquivos a gente vai ter que escolher. A gente vai escolher o de prod agora. E qual que é o target dele? Ele vai ficar aqui dentro desse diretório como .env.
+
+[02:53] Lembrando que cada job tem o seu diretório específico dentro do Jenkins. Então, dessa maneira a gente tem o .env dentro de /var/jenkins e dentro desse diretório todo-list-producao.
+
+[03:08] Feito isso, agora a gente vai colocar um shell script pra subir o container de produção. Lembrando que muda a porta de conexão então, nesse caso, a porta de conexão vai ser a 80. A de produção é 80, e a desenvolvimento é 81.
+
+[03:24] Antes de subir que que a gente tenta fazer? Derrubar o container de produção pra subir o container novo. Existem outras maneiras de fazer isso, a gente vai ver mais pra frente em outros cursos da Alura como que a gente trabalha com Kubernetes pra fazer a orquestração. Essa é uma maneira mais simples pra gente terminar a pipeline nosso de uma maneira saudável.
+
+[03:44] Então o que ele tenta fazer? Primeiro ele tenta derrubar e subir o container. O que ele tenta fazer? Primeiro ele tenta subir o container na porta 80 passando tanto o sock de conexão do MySQL, quanto as variáveis de ambiente dentro do arquivo .env.
+
+[04:03] Eu também dou um nome pra ele que é o django-todolist-prod, que é o nome do container, e essa imagem vem lá do parâmetro que a gente vai receber do job anterior. Se ele não conseguir subir por algum motivo, ou porque o container já tá rodando ou porque a porta tá ocupada, ele vai derrubar o container com o mesmo nome, ele vai procurar um container com mesmo nome, e vai tentar subir novamente. Se mesmo assim ele não conseguir, aí o nosso job falha.
+
+[04:31] Então agora o que que a gente faz? Copia esse shell script, adiciona o Executar shell, passa o script aqui pra ele, e, nas ações de pós-build a gente vai marcar, no Slack Notifications, duas opções: se for com sucesso ou se for com falha. Por quê? Nós aprendemos a usar o Slack Notifications dentro do Groovy, essa é uma outra maneira da gente utilizar via interface usando o free-style.
+
+[05:05] Vou dar um salvar e agora eu vou mandar construir com parâmetros. Como ainda ele não tá recebendo do job anterior, ele vai receber manualmente esse valor, por enquanto. Eu vou dar um construir.
+
+[05:24] Ele tá rodando, rodou com sucesso. E agora a gente acessa a URL da aplicação sem a porta 81, que é a porta normal que é a porta 80 de conexão. A gente já tem aquele usuário que é alura, senha mestre123. Conectamos aqui, ele vai carregar os nossos "todos" pra produção. Pronto, carregou. Essa é a nossa interface de produção sem usar a porta 81.
+
+[05:58] Na próxima aula a gente vai, agora, configurar os três jobs pra interagirem com os parâmetros, pra que a gente consiga passar valores de um job pro outro. Até a próxima.
+
+@@02
+Integração dos jobs
+
+O script que o instrutor segue durante a aula é o seguinte:
+# Post build actions para os 3 jobs
+
+Job: jenkins-todo-list-principal > Ações de pós-build > Trigger parameterized buld on other projects
+    Projects to build: todo-list-desenvolvimento
+    # Add parameters > Predefined parameters
+        image=${image}
+
+Job: todo-list-desenvolvimento
+
+    pipeline {
+        environment {
+            dockerImage = "${image}"
+        }
+        agent any
+
+        stages {
+            stage('Carregando o ENV de desenvolvimento') {
+                steps {
+                    configFileProvider([configFile(fileId: '2ed9697c-45fc-4713-a131-53bdbeea2ae6', variable: 'env')]) {
+                        sh 'cat $env > .env'
+                    }
+                }
+            }
+            stage('Derrubando o container antigo') {
+                steps {
+                    script {
+                        try {
+                            sh 'docker rm -f django-todolist-dev'
+                        } catch (Exception e) {
+                            sh "echo $e"
+                        }
+                    }
+                }
+            }        
+            stage('Subindo o container novo') {
+                steps {
+                    script {
+                        try {
+                            sh 'docker run -d -p 81:8000 -v /var/run/mysqld/mysqld.sock:/var/run/mysqld/mysqld.sock -v /var/lib/jenkins/workspace/todo-list-desenvolvimento/.env:/usr/src/app/to_do/.env --name=django-todolist-dev ' + dockerImage + ':latest'
+                        } catch (Exception e) {
+                            slackSend (color: 'error', message: "[ FALHA ] Não foi possivel subir o container - ${BUILD_URL} em ${currentBuild.duration}s", tokenCredentialId: 'slack-token')
+                            sh "echo $e"
+                            currentBuild.result = 'ABORTED'
+                            error('Erro')
+                        }
+                    }
+                }
+            }
+            stage('Notificando o usuario') {
+                steps {
+                    slackSend (color: 'good', message: '[ Sucesso ] O novo build esta disponivel em: http://192.168.33.10:81/ ', tokenCredentialId: 'slack-token')
+                }
+            }
+            stage ('Fazer o deploy em producao?') {
+                steps {
+                    script {
+                        slackSend (color: 'warning', message: "Para aplicar a mudança em produção, acesse [Janela de 10 minutos]: ${JOB_URL}", tokenCredentialId: 'slack-token')
+                        timeout(time: 10, unit: 'MINUTES') {
+                            input(id: "DeployGate", message: "Deploy em produção?", ok: 'Deploy')
+                        }
+                    }
+                }
+            }
+            stage (deploy) {
+                steps {
+                    script {
+                        try {
+                            build job: 'todo-list-producao', parameters: [[$class: 'StringParameterValue', name: 'image', value: dockerImage]]
+                        } catch (Exception e) {
+                            slackSend (color: 'error', message: "[ FALHA ] Não foi possivel subir o container em producao - ${BUILD_URL}", tokenCredentialId: 'slack-token')
+                            sh "echo $e"
+                            currentBuild.result = 'ABORTED'
+                            error('Erro')
+                        }
+                    }
+                }
+            }
+        }
+    }COPIAR CÓDIGO
+[00:00] Tudo bem pessoal? Vamos pra mais uma aula? Agora a gente vai aprender a integrar os jobs que a gente criou, passando parâmetros de um pro outro.
+
+[00:09] Então, primeiro job que a gente vai fazer a configuração é no principal. A gente vem aqui em configurar, aqui embaixo nas opções de pós-build a gente vai escolher a opção de fazer o trigger num build parametrizado pra outros projetos. Clicamos aqui, aí ele vai perguntar o seguinte, então agora vamos escolher qual job que o principal vai disparar. Clicando nele aqui a gente vai colocar aqui todo-list-desenvolvimento, aí ele vai ser o job que vai passar o parâmetro.
+
+[00:48] E a gente vai fazer o seguinte: vai adicionar um parâmetro que vai ser passado pro próximo job, e ele vai ser pré-definido. Qual vai ser esse parâmetro? Vai ser o image que a gente sabe que ele espera no próximo lado.
+
+[01:07] E qual vai ser o valor desse parâmetro? Image também só que agora a gente coloca em dólar, por quê? Esse image vai referenciar desse parâmetro aqui. Esse vai ser o inicial, daqui pra frente todos os jobs que forem acionados na cadeia, que nós definimos, vai receber essa mesma imagem como parâmetro.
+
+[1:32] A gente dá um salvar. Então agora a gente vai configurar o segundo job que é o job de desenvolvimento que vai subir os nossos containers de dev. Então a gente volta aqui, dentro do job de desenvolvimento a gente vai em Configurar e nós faremos duas alterações aqui.
+
+[01:52] A primeira alteração, assim como no job passado, o próximo job que vai ser chamado pra fazer a configuração de produção. Só que pra que isso aconteça, como esse job ele é escrito em Groovy, eu preciso trocar o arquivo Groovy que a gente tá usando até agora.
+
+[02:11] O que tem de diferente nesse arquivo novo? Deixa eu abrir aqui pra mostrar pra vocês. Bom, aqui no arquivo, no começo é igual ao que a gente já tinha usado, a gente só tem alguns estágios novos.
+
+[02:23] O primeiro estágio é o seguinte: eu vou fazer uma pergunta pro usuário "Olha, você quer fazer o deploy em produção?" Isso vai aparecer na interface do Jenkins. Quais são os steps desse estágio aqui? Eu vou mandar uma mensagem de warning lá no slack e vou avisar o usuário: "Olha, você quer aplicar a mudança em produção? Você tem uma janela de 10 minutos pra fazer isso". Isso aqui é um exemplo somente. E aí ele dá a URL, a qual o usuário acessa pra aceitar ou não aceitar o deploy, passando lá nossas credenciais do slack token do mesmo jeito.
+
+[02:57] Como é que eu defino esse tempo e como é que eu ponho essa mensagem na tela pro usuário? Eu uso uma função de time-out com tempo de 10 minutos, é o tempo e a unidade que eu escolhi, vocês podem mudar de vocês no projeto de vocês não tem problema nenhum, e aí eu coloco um input.
+
+[03:13] O input, o que que ele vai fazer? Ele vai mostrar um pop-up dentro daquele job perguntando pro cara: "Você quer ou não quer fazer o deploy?". E aí ele vai fazer o seguinte: qual é a mensagem? "Você quer fazer o deploy em produção?". Se clicar em ok, o que acontece? Ele continua o pipeline dentro do Groovy.
+
+[03:31] E qual que é o próximo passo? É o deploy. Se você não clicar pra fazer o deploy em produção, ele vai abortar o seu processo, ele já fez o deploy em desenvolvimento, seu job vai ficar marcado como aborted, não como erro.
+
+[03:44] E aí dentro desse estágio de deploy, mais um stage, eu tenho uma função nova que vocês não viram ainda, que é como eu chamo o próximo job via Groovy.
+
+[03:56] Lá no primeiro job a gente fez via interface gráfica, aqui a gente chama a função build job, passa o nome do job que é o todo-list-producao, passa o parâmetro que é o nome da imagem, então aqui a gente passa como parâmetros do tipo string, o nome do parâmetro é imagem, e o valor dele é o dockerImage que a gente já sabe, porque lá em cima em ambientes a gente já recebeu do primeiro job a mesma imagem.
+
+[04:25] É aquela ideia que a gente conversou, você constrói uma vez só e vai até o final com o seu artefato.
+
+[04:32] E agora que a gente fez o deploy em produção, a gente vai ter as duas aplicações rodando paralelamente. Vamos ver como isso funciona na prática?
+
+[04:40] Bom, pra isso tudo funcionar pegamos todo o nosso script aqui, substituímos o script que a gente tinha que era um pouquinho menor e salvamos. Visualizando aqui nosso pipeline completo.
+
+[04:59] Nós vamos agora fazer o commit no código, o código vai ser atualizado aqui no Jenkins, o Jenkins vai observar o meu GitHub, ele vai fazer o build da imagem, vai registrar a imagem no Docker Hub, vai escutar os testes da imagem, vai notificar o resultado no Slack, se for com sucesso ele vai dar o trigger no job de Dev, o job de Dev vai subir, vai notificar qual que é a URL e vai perguntar pro usuário "Você quer ou não colocar em produção?".
+
+[05:30] Na interface do Jenkins a gente vai escolher sim ou não, e aí vai determinar se esse job vai ser executado ou não vai. Então vamos lá.
+
+[05:41] Bom, voltamos aqui então no nosso ambiente que é dentro do nosso Vagrant da nossa máquina virtual, a gente acessou o diretório Vagrant e o diretório do código-fonte da aplicação, que foi aquele primeiro que a gente acessou lá nas primeiras aulas. E agora a gente vai fazer uma alteração nesse código. Lembrando que tá tudo configurado e conectado com GitHub.
+
+[06:02] Então a gente vai editar dentro de templates/registration/login.html e, pra exemplificar, vamos trocar aqui de Login pra Entrar, é só um exemplo. Salvamos. Então agora a gente vai fazer o commit desse código no GitHub.
+
+[06:25] Primeiro a gente adiciona o código. Limpar a tela aqui pra vocês. Agora a gente adicionou o código, a gente vai gerar a mensagem de commit, git commit -m "Alterando o valor do botao de entrar", é só um exemplo. E agora a gente vai fazer o push pro nosso repositório. Então a gente vai digitar "git push origin master". Feito isso, a gente vai esperar mensagem de confirmação, a gente volta lá pro Jenkins pra observar que todos os três jobs vão ser executados automaticamente.
+
+[07:14] A gente teve um probleminha na rede aqui, então a gente vai reexecutar o comando "git push origin master", ele vai fazer o push do código pro GitHub, assim que terminar a gente volta.
+
+[07:32] Legal, acabou o nosso commit aqui, então agora a gente vai aqui pros nossos pipelines. Na visão geral do Jenkins pra visualizar como é que ele tá fazendo esse fluxo inteiro. Automaticamente ele startou o build do job principal. A gente não tá alterando nada, isso aqui é tudo automático.
+
+[07:58] Reparem o seguinte, ele terminou de executar o job principal e automaticamente ele chamou o job de desenvolvimento, só que ele parou no step aqui: "Fazer o deploy em produção?"
+
+[08:11] Se a gente clicar aqui no nosso job, a gente vai perceber que nesse step de deploy em produção, se eu parar com o mouse em cima ele vai perguntar: "Você quer ou não colocar essa aplicação em produção?". A gente vai clicar em deploy e aí ele vai chamar o próximo job que é o job todo-list-producao que vai fazer o que a gente já tinha configurado pra ele fazer.
+
+[08:33] Terminou, executou com sucesso. Se a gente olhar aqui no nosso Slack, ele começou o build disponível de dev pra gente, avisou que a mudança em produção tinha 10 minutos de janela e deu a URL pra fazer o acesso de aprovação ou não, que é a mesma URL que abre essa área pra gente. E aí ele avisou: "Olha, nosso job tá em produção".
+
+[09:00] Vamos validar agora às duas URL que a gente produziu. A primeira é a porta 81 da URL de desenvolvimento. Então a gente acessa a aplicação aqui, a senha nossa é mestre123. Entrei, esse aqui é o meu ambiente de desenvolvimento, meu banco de dados inclusive de desenvolvimento.
+
+[09:22] E o de produção, qual que é? O de produção é a mesma URL só que sem a porta 81, só a URL mesmo. A gente acessa com mestre123 e pronto, são duas aplicações rodando na mesma máquina que foram buildadas automaticamente, foram deployadas automaticamente, só que em portas diferentes pelo Jenkins.
+
+[09:48] Vamos dar uma olhada no Docker Hub só pra gente ver a nossa imagem registrada lá, "hub.docker.com/u/aluracursos". A gente vai ver a nossa imagem. A nossa imagem foi deployada há 12 minutos atrás, que foi quando a gente executou o último job na gravação aqui. Eu já tenho cinco pulls na minha imagem, ou seja, cinco vezes ela foi executada pra rodar os meus containers.
+
+[10:25] Bom, na próxima aula a gente vai trabalhar agora com qualidade de código. Nós vamos criar um job pra fazer a análise e a cobertura do nosso código, e gerar relatórios pra que a gente possa melhorar ou corrigir eventuais mau usos da linguagem, no caso do Django ou de qualquer linguagem que vocês trabalharem.
+
+[10:45] Nós trabalharemos com aplicação SonarQube integrado com o Jenkins. A gente se vê na próxima aula.
+
+@@03
+Deploy em produção
+
+Qual é a sintaxe correta para colocar uma decisão no pipeline, utilizando a linguagem Groovy?
+
+timeout(time: 10, unit: 'MINUTES') {
+    input(id: "Deploy Gate", message: "Deploy em produção?", ok: 'Deploy')
+}
+ 
+Alternativa correta!
+Alternativa correta
+tout(time: 10, unit: 'MINUTES') {
+    input(id: "Deploy Gate", message: "Deploy em produção?", ok: 'Deploy')
+}
+ 
+Alternativa correta
+timeout(time: 10 'MINUTES') {
+    input(id: "Deploy Gate", message: "Deploy em produção?", ok: 'Deploy')
+}
+ 
+Alternativa correta
+time-outs(time: 10, unit: 'MINUTES') {
+    input(id: "Deploy Gate", message: "Deploy em produção?", ok: 'Deploy')
+}
+
+@@04
+Passando parâmetros de um job para outro
+
+Qual é uma das vantagens de passar parâmetros de um job para outro no Jenkins?
+
+Essa é única maneira de habilitar o trigger de outros jobs automaticamente
+ 
+Alternativa correta
+Isso possibilita que o Jenkins combine todos os jobs encadeados em um novo job com todos os passos
+ 
+Alternativa errada!
+Alternativa correta
+Com essa integração, alguns parâmetros podem ser passados para o primeiro job e os demais, quando configurados, podem receber automaticamente esses valores, como por exemplo o nome da imagem
+ 
+Alternativa correta!
+
+05
+Consolidando o seu conhecimento
+
+Chegou a hora de você seguir todos os passos realizados por mim durante esta aula. Caso já tenha feito, excelente. Se ainda não, é importante que você execute o que foi visto nos vídeos para poder continuar com a próxima aula.
+1) Crie o job para colocar a aplicação em produção. Você pode se guiar pelo script que o instrutor seguiu durante a aula:
+
+# Criar o job para colocar a app em producao:
+    Nome: todo-list-producao
+    Tipo: Freestyle
+    # Este build é parametrizado com 2 Builds de Strings:
+        Nome: image
+        Valor padrão: - Vazio, pois o valor sera recebido do job anterior.
+
+        Nome: DOCKER_HOST
+        Valor padrão: tcp://127.0.0.1:2376
+
+    # Ambiente de build > Provide configuration files
+        File: .env-prod
+        Target: .env
+
+    # Build > Executar shell
+        #Execute shell
+        #!/bin/sh
+        { 
+            docker run -d -p 80:8000 -v /var/run/mysqld/mysqld.sock:/var/run/mysqld/mysqld.sock -v /var/lib/jenkins/workspace/todo-list-producao/.env:/usr/src/app/to_do/.env --name=django-todolist-prod $image:latest
+
+        } || { # catch
+            docker rm -f django-todolist-prod
+            docker run -d -p 80:8000 -v /var/run/mysqld/mysqld.sock:/var/run/mysqld/mysqld.sock -v /var/lib/jenkins/workspace/todo-list-producao/.env:/usr/src/app/to_do/.env --name=django-todolist-prod $image:latest
+        }    
+
+Ações de pós-build > Slack Notifications: Notify Success e Notify Every FailureCOPIAR CÓDIGO
+2) Faça a integração do jobs. Você pode se guiar pelo script que o instrutor seguiu durante a aula:
+
+# Post build actions para os 3 jobs
+
+Job: jenkins-todo-list-principal > Ações de pós-build > Trigger parameterized buld on other projects
+    Projects to build: todo-list-desenvolvimento
+    # Add parameters > Predefined parameters
+        image=${image}
+
+Job: todo-list-desenvolvimento
+
+    pipeline {
+        environment {
+            dockerImage = "${image}"
+        }
+        agent any
+
+        stages {
+            stage('Carregando o ENV de desenvolvimento') {
+                steps {
+                    configFileProvider([configFile(fileId: '2ed9697c-45fc-4713-a131-53bdbeea2ae6', variable: 'env')]) {
+                        sh 'cat $env > .env'
+                    }
+                }
+            }
+            stage('Derrubando o container antigo') {
+                steps {
+                    script {
+                        try {
+                            sh 'docker rm -f django-todolist-dev'
+                        } catch (Exception e) {
+                            sh "echo $e"
+                        }
+                    }
+                }
+            }        
+            stage('Subindo o container novo') {
+                steps {
+                    script {
+                        try {
+                            sh 'docker run -d -p 81:8000 -v /var/run/mysqld/mysqld.sock:/var/run/mysqld/mysqld.sock -v /var/lib/jenkins/workspace/todo-list-desenvolvimento/.env:/usr/src/app/to_do/.env --name=django-todolist-dev ' + dockerImage + ':latest'
+                        } catch (Exception e) {
+                            slackSend (color: 'error', message: "[ FALHA ] Não foi possivel subir o container - ${BUILD_URL} em ${currentBuild.duration}s", tokenCredentialId: 'slack-token')
+                            sh "echo $e"
+                            currentBuild.result = 'ABORTED'
+                            error('Erro')
+                        }
+                    }
+                }
+            }
+            stage('Notificando o usuario') {
+                steps {
+                    slackSend (color: 'good', message: '[ Sucesso ] O novo build esta disponivel em: http://192.168.33.10:81/ ', tokenCredentialId: 'slack-token')
+                }
+            }
+            stage ('Fazer o deploy em producao?') {
+                steps {
+                    script {
+                        slackSend (color: 'warning', message: "Para aplicar a mudança em produção, acesse [Janela de 10 minutos]: ${JOB_URL}", tokenCredentialId: 'slack-token')
+                        timeout(time: 10, unit: 'MINUTES') {
+                            input(id: "Deploy Gate", message: "Deploy em produção?", ok: 'Deploy')
+                        }
+                    }
+                }
+            }
+            stage (deploy) {
+                steps {
+                    script {
+                        try {
+                            build job: 'todo-list-producao', parameters: [[$class: 'StringParameterValue', name: 'image', value: dockerImage]]
+                        } catch (Exception e) {
+                            slackSend (color: 'error', message: "[ FALHA ] Não foi possivel subir o container em producao - ${BUILD_URL}", tokenCredentialId: 'slack-token')
+                            sh "echo $e"
+                            currentBuild.result = 'ABORTED'
+                            error('Erro')
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+Continue com os seus estudos, e se houver dúvidas, não hesite em recorrer ao nosso fórum!
+
+@@06
+O que aprendemos?
+
+Nesta aula, aprendemos:
+A criar um job para fazer o deploy no ambiente de produção, utilizando o seu próprio arquivo de configuração
+Como integrar os três jobs criados até aqui, passando parâmetros de um para o outro
