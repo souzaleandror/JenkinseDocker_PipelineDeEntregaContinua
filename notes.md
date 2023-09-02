@@ -2,6 +2,16 @@
 
 Curso de Jenkins e Docker: Pipeline de entrega continua
 
+
+```
+sites usados:
+https://slack.com/intl/pt-br/
+https://hub.docker.com
+http://localhost:8080
+http://192.168.33.10:8080
+http://192.168.33.10:9000/projects
+```
+
 ```
 Utils Command:
 
@@ -21,8 +31,28 @@ php -S localhost:8000
 
 brew install nginx
 brew install php
-```
 
+vagrant up
+vagrant ssh
+vagrant halt
+
+docker rm -f sonarqube
+docker ps -a
+
+97fc8bfb1c62fc6b8136e21e723274717d88dd6a
+
+sonar-scanner \
+  -Dsonar.projectKey=jenkins-todolist \
+  -Dsonar.sources=. \
+  -Dsonar.host.url=http://192.168.33.10:9000 \
+  -Dsonar.login=97fc8bfb1c62fc6b8136e21e723274717d88dd6a
+
+    ./sonar-scanner-3.3.0.1492-linux/bin/sonar-scanner   -X \
+    -Dsonar.projectKey=jenkins-todolist \
+    -Dsonar.sources=. \
+    -Dsonar.host.url=http://192.168.33.10:9000 \
+    -Dsonar.login=<seu token>
+```
 
 https://stackoverflow.com/questions/70541720/jenkins-has-no-installation-candidate-error-while-trying-to-install-jenkins-on
 https://stackoverflow.com/questions/15174194/jenkins-host-key-verification-failed
@@ -1899,3 +1929,243 @@ O que aprendemos?
 Nesta aula, aprendemos:
 A criar um job para fazer o deploy no ambiente de produção, utilizando o seu próprio arquivo de configuração
 Como integrar os três jobs criados até aqui, passando parâmetros de um para o outro
+
+#### 02/09/2023
+
+@06-Relatórios de qualidade com SonarQube
+
+@@01
+Introdução ao SonarQube
+
+[00:00] Tudo bem pessoal? A gente vai começar agora a trabalhar com a parte de qualidade de código, mas a gente vai fazer um review de tudo que a gente fez até agora.
+[00:09] Nós, primeiro, criamos todo o pipeline de deploy da aplicação, desde versionamento até deploy em produção.
+
+[0:18] Nós criamos jobs distintos pra que vocês entendam as maneiras diferentes de criar esses pipelines. A gente poderia ter colocado tudo dentro de um job só, não tem problema nenhum, mas agora vocês sabem que existem maneiras distintas de criar um job.
+
+[00:32] Paralelo ao job de pipeline, nós vamos criar um job que vai fazer a cobertura de código. Basicamente ele funciona da seguinte maneira: ele também observa o Git Hub, ele vai ficar o tempo inteiro procurando no Git Hub alterações, quando ele perceber alterações ele vai escanear o código e vai enviar o resultado desses scanner pro SonarQube e o SonarQube vai exibir um relatório de cobertura de código, se tem algum code smell, alguma coisa que o desenvolvedor deixou passar, ou nós mesmos deixamos passar.
+
+[01:06] Então pra que a gente faça isso funcionar, a gente primeiro tem que instalar o SonarQube, e esse é um assunto pra próxima aula.
+
+@@02
+Conhecendo o SonarQube
+
+No último vídeo, conhecemos o Sonarqube. Dentre as alternativas abaixo, qual representa melhor a sua definição?
+
+É uma ferramenta que constrói pipelines
+ 
+Alternativa correta
+É uma ferramenta que automaticamente identifica e corrige os code smells encontrados
+ 
+Alternativa errada!
+Alternativa correta
+É uma ferramenta que escaneia o código fonte para identificar débitos técnicos, más práticas, erros de sintaxe e outras métricas
+ 
+Alternativa correta!
+Alternativa correta
+É uma ferramenta que somente avalia o débito técnico de uma aplicação
+ 
+Parabéns, você acertou!
+
+@@03
+Instalação do SonarQube
+
+O script que o instrutor segue durante a aula é o seguinte:
+# Subindo o container com o Sonarcube
+  Na máquina devops (Vagrant): docker run -d --name sonarqube -p 9000:9000 sonarqube:lts
+  # Acessar: http://192.168.33.10:9000
+    Usuário: admin
+    Senha: admin
+    Name: jenkins-todolist
+        Provide a token: jenkins-todolist e anotar o seu token
+        Run analysis on your project > Other (JS, Python, PHP, ...) > Linux > django-todo-list
+        # Copie o shell script fornecido
+
+sonar-scanner \
+  -Dsonar.projectKey=jenkins-todolist \
+  -Dsonar.sources=. \
+  -Dsonar.host.url=http://192.168.33.10:9000 \
+  -Dsonar.login=<seu token>COPIAR CÓDIGO
+[00:00] Pessoal, pra instalar o SonarQube nós vamos utilizar o Docker, nós vamos rodar ele num container. O comando pra rodar o SonarQube é esse aqui, vamos colocar ele aqui no nosso terminal. Estamos dentro do Vagrant de novo, dentro do Ubuntu, que é a nossa máquina virtual, e a gente vai colar.
+
+[00:17] Esse comando, basicamente, tá falando o seguinte: rode um container em daemon com o nome sonarqube, pra manter o padrão, expondo a porta 9000 usando a imagem do SonarQube long term support. A gente vai dar um Enter aqui, ele vai baixar a imagem e subir o container, assim que terminar a gente volta.
+
+[00:36] Legal, terminou a nossa instalação. Vamos validar se realmente tá rodando, docker ps, ele vai trazer todos os containers que estão na máquina.
+
+[00:47] Bom, aqui a gente tem o SonarQube rodando, a nossa aplicação não tá rodando ainda, mas ela ainda vai rodar quando disparar o pipeline. Então agora vamos acessar aqui a página do SonarQube.
+
+[01:01] Assim que a gente abre ele vai começar a instalação automática dele, ele vai usar um banco que não é pra funcionar em produção, é só um exemplo, você vai ter que ter sua instalação do SonarQube configurada com os parâmetros direitinho. Assim que a instalação do SonarQube terminar, a gente continua.
+
+[01:19] Legal, ele terminou e aí veio pra essa tela aqui na nossa frente. Vamos clicar em login, o usuário é admin e a senha é admin. Ele fala aqui embaixo que o banco de dados tá embutido nessa aplicação porque é só pra parte de evaluation, não é pra usar isso em produção, mas é um bom exemplo.
+
+[01:43] Login, ele vai abrir a página do SonarQube, aí ele pede um token. A gente vai gerar um token pra um projeto que a gente vai analisar. Nesse caso vai ser o nosso jenkins-todolist, é só um exemplo de nome, não tem nada especial nisso. Clica em gerar, ele vai gerar um token pra gente, a gente tem que anotar esse token, ele vai ser importante então a gente vai anotar esse token aqui e vai continuar.
+
+[2:22] Aí ele vai falar o seguinte: "Rode uma análise no seu projeto". A gente vai falar que esse nosso projeto é em outra linguagem e roda no Linux, além de Java e C# ou VB.NET, são outras linguagens, é um script genérico e roda no Linux. E ele vai pedir uma chave de identificação única no nosso projeto, vamos colocar assim: jenkins-todolist, pra manter o mesmo padrão de nomenclatura.
+
+[02:51] Dei um done e aí ele passou pra gente aqui o comando que a gente vai ter que rodar pra fazer o scanner da aplicação. Vamos copiar esse comando aqui que a gente vai acabar usando ele depois. Vamos anotar ele aqui embaixo que ele vai servir pra referências futuras.
+
+[03:14] Feito isso a nossa instalação tá terminada. A gente se vê na próxima aula.
+
+@@04
+SonarQube com Docker
+
+Qual o comando que faz a instalação do Sonarqube com Docker?
+
+apt-get install sonarcube
+ 
+Alternativa correta
+docker run -d --name sonarqube -p 9000:9000 sonarqube:lts
+ 
+Alternativa correta!
+Alternativa correta
+docker images -d --name sonarqube -p 9000:9000 sonarqube:lts
+ 
+Parabéns, você acertou!
+
+@@05
+Job para scan do código
+
+O script que o instrutor segue durante a aula é o seguinte:
+# Criar um job para Coverage com o nome: todo-list-sonarqube
+    # Gerenciamento de código fonte > Git
+        git: git@github.com:alura-cursos/jenkins-todo-list.git (Selecione as mesmas credenciais)
+        branch: master
+        Pool SCM: * * * * *
+        Delete workspace before build starts
+        Execute Script:
+
+    # Build > Adicionar passo no build > Executar Shell
+
+        #!/bin/bash
+        # Baixando o Sonarqube
+        wget https://s3.amazonaws.com/caelum-online-public/1110-jenkins/05/sonar-scanner-cli-3.3.0.1492-linux.zip
+
+        # Descompactando o scanner
+        unzip sonar-scanner-cli-3.3.0.1492-linux.zip
+
+        # Rodando o Scanner
+        ./sonar-scanner-3.3.0.1492-linux/bin/sonar-scanner   -X \
+          -Dsonar.projectKey=jenkins-todolist \
+          -Dsonar.sources=. \
+          -Dsonar.host.url=http://192.168.33.10:9000 \
+          -Dsonar.login=<seu token>COPIAR CÓDIGO
+[00:00] Bom pessoal, agora tá na hora da gente criar o nosso job pra fazer o scanner do código, pra fazer a cobertura de qualidade. Então a gente vai criar um novo job com o nome todo-list-sonarqube e do tipo freestyle.
+
+[00:17] Agora que a gente criou o job, quais são as opções que a gente vai marcar? A primeira opção é que é um código git que está nesse repositório aqui, que é o nosso repositório desde o começo. Ou seja, tanto o nosso pipeline quantos o SonarQube vão escanear o mesmo código e vão usar a chave SSH que a gente criou.
+
+[00:39] Sempre olhando a Branch Master, isso é sempre importante da gente colocar dependendo da branch que vocês forem trabalhar, nesse nosso caso é a Branch Master.
+
+[00:46] Qual que é o trigger build dele? Vai ser a cada minuto ele vai observar se existe algum tipo de alteração dentro do nosso código fonte. Se existir, ele dispara. Ele vai também ter que deletar o projeto antes de começar um novo, ele vai apagar o workspace e criar um workspace novo dentro aqui do Jenkins pra evitar sujeira no código. E aí o build step dele, que é o scanner em si, vai ser um shell que contém isso aqui. É essa parte aqui que tá selecionada. O que isso aqui corresponde?
+
+[01:25] Primeiro a gente baixa o SonarScanner CLI, que tá disponível também no site do SonarQube mas a gente disponibilizou pra vocês nesse armazenamento aqui pra sempre estar disponível.
+
+[01:38] Depois, a gente vai descompactar esse scanner e vai executar o SonarScanner, que tá dentro de bin desse diretório, com esses parâmetros aqui que são os parâmetros que nós copiamos na instalação do SonarQube, que é: a chave do projeto; qual é o source dele ou seja, ele vai analisar qual diretório, é daqui pra baixo, ele vai fazer o scanner em todos os diretórios dentro do meu repositório, vai registrar o resultado nesse servidor aqui.
+
+[02:08] Esse resultado é consequência do scanner. Então o scanner funciona, gera uma massa de dados e registra isso no servidor usando essa chave de autenticação. Então a gente copia esse script, cola e salva.
+
+[02:26] Então, daqui um minuto, ele vai executar esse build e a gente vai ver o resultado disso daí. Enquanto ele não executa, tem uma observação legal pra ser feita. Se, eventualmente, vocês não tiverem espaço de memória na máquina de vocês, vocês podem disponibilizar mais recurso só alterando o Vagrant file, porque vocês eventualmente vão encontrar dificuldades dentro da quantidade de aplicações que estão subindo. A gente já volta.
+
+[02:55] Bom, o scanner terminou. Vamos analisar nosso job aqui e vamos dar uma olhadinha no console rapidinho dentro do Jenkins. Olha, ele fez o download do arquivo .zip, depois ele deu unzip no arquivo, e aí ele chamou a execução do SonarQube, passando os parâmetros que a gente pediu.
+
+[03:22] Voltando aqui no SonarQube, a gente vai clicar no nosso projeto e ele vai carregar a interface com a cobertura que ele fez. Então ele encontrou zero bugs, zero vulnerabilidades, ele encontrou um Code Smell.
+
+[03:40] Esse Code Smell, se a gente clicar aqui no Code Smell que ele encontrou, ele vai falar pra gente o seguinte: nesse arquivo, nessa classe de teste, ele não gostou muito do jeito que a gente nomeou a função pra fazer o setup da classe de teste.
+
+[03:58] Se nós corrigirmos isso daí pra sugestão que ele deu, isso é uma sugestão, que é separar com underscore que é o padrão de nomenclatura que ele pede, a nossa classe de teste para de funcionar e a gente quebra o nosso pipeline.
+
+[04:13] Então fica aí como tarefa pra vocês testarem. Se quiserem corrigir essa classe e fazer o push vocês vão perceber que o pipeline de vocês vai parar de funcionar.
+
+[04:24] Pessoal, voltando aqui no overview, só alguns resultados que ele passou. Ele passou no teste de qualidade, é um teste bem básico. O SonarQube tem várias outras maneiras de fazer essa cobertura mais profundas, mas é uma introdução bem legal pra vocês. Ele encontrou 314 linhas de código, qual que é a linguagem predominante, o que ele achou de XML, nesse caso é HTML que eventualmente é a mesma coisa.
+
+[04:50] Então essa aqui é uma maneira de se integrar o Jenkins com o SonarQube. Então, pra essa aula, a gente acabou.
+
+@@06
+Escaneando o código fonte
+
+Tendo o seguinte parâmetro do sonar-scanner:
+-Dsonar.loginCOPIAR CÓDIGO
+Qual a sua função?
+
+
+Alternativa correta
+É a senha que acompanha o nome do usuário sonar.login
+ 
+Alternativa correta
+É útil apenas quando precisamos criar retroativamente o histórico de um projeto não analisado antes
+ 
+Alternativa correta
+É login ou token de autenticação de um usuário do SonarQube com permissão de execução de análise no projeto
+ 
+Alternativa correta!
+
+07
+Consolidando o seu conhecimento
+
+Chegou a hora de você seguir todos os passos realizados por mim durante esta aula. Caso já tenha feito, excelente. Se ainda não, é importante que você execute o que foi visto nos vídeos para poder continuar com os próximos cursos que tenham este como pré-requisito.
+1) Instalação o SonarQube, subindo o seu container. Você pode se guiar pelo script que o instrutor seguiu durante a aula:
+
+# Subindo o container com o Sonarcube
+  Na máquina devops (Vagrant): docker run -d --name sonarqube -p 9000:9000 sonarqube:lts
+  # Acessar: http://192.168.33.10:9000
+    Usuário: admin
+    Senha: admin
+    Name: jenkins-todolist
+        Provide a token: enkins-todolist e anotar o seu token
+        Run analysis on your project > Other (JS, Python, PHP, ...) > Linux > django-todo-list
+        # Copie o shell script fornecido
+
+sonar-scanner \
+  -Dsonar.projectKey=enkins-todolist \
+  -Dsonar.sources=. \
+  -Dsonar.host.url=http://192.168.33.10:9000 \
+  -Dsonar.login=<seu token>COPIAR CÓDIGO
+2) Crie um job para o escaneamento do seu código. Você pode se guiar pelo script que o instrutor seguiu durante a aula:
+
+# Criar um job para Coverage com o nome: todo-list-sonarqube
+    # Gerenciamento de código fonte > Git
+        git: git@github.com:alura-cursos/jenkins-todo-list.git (Selecione as mesmas credenciais)
+        branch: master
+        Pool SCM: * * * * *
+        Delete workspace before build starts
+        Execute Script:
+
+    # Build > Adicionar passo no build > Executar Shell
+
+        #!/bin/bash
+        # Baixando o Sonarqube
+        wget https://s3.amazonaws.com/caelum-online-public/1110-jenkins/05/sonar-scanner-cli-3.3.0.1492-linux.zip
+
+        # Descompactando o scanner
+        unzip sonar-scanner-cli-3.3.0.1492-linux.zip
+
+        # Rodando o Scanner
+        ./sonar-scanner-3.3.0.1492-linux/bin/sonar-scanner   -X \
+          -Dsonar.projectKey=jenkins-todolist \
+          -Dsonar.sources=. \
+          -Dsonar.host.url=http://192.168.33.10:9000 \
+          -Dsonar.login=<seu token>
+
+Continue com os seus estudos, e se houver dúvidas, não hesite em recorrer ao nosso fórum!
+
+@@08
+O que aprendemos?
+
+Nesta aula, aprendemos:
+Uma introdução do SonarQube
+Como instalar o SonarQube
+Como criar um job para escanear o nosso código e fazer o relatório de qualidade
+
+@@09
+Conclusão
+
+[00:00] Pessoal, isso conclui o nosso curso de Jenkins, e eu queria passar uma visão geral de tudo que a gente fez desde a primeira aula.
+[00:09] Nós chegamos de um código não versionado até um projeto completo que envolve, desde a parte de versionamento do código no Git Hub, a parte de build de imagens utilizando Docker, registro de imagens dentro do Docker HUB ou de qualquer repositório que vocês vão utilizar, a parte de notificação a gente integrou com o Slack que é muito utilizado por vários times de desenvolvimento por muitas empresas. Fizemos a parte de teste também, unitário da aplicação.
+
+[00:42] Depois nós construímos um outro tipo de job, diferente do primeiro, que era um job utilizando Groovy que é uma maneira diferente de usar o Jenkins, que funciona muito bem. Que ele faz o deploy em dev de aplicação, também faz a notificação e, além disso, ele dá a opção de a gente colocar ou não esse código em produção através de um operador que a gente coloca sim ou não via interface gráfica, também notificando tudo via Slack.
+
+[01:08] E aí, se acontecesse isso, a gente também fez um terceiro job que colocava em produção a nossa aplicação. A gente viu as duas aplicações rodando em paralelo. Nós vimos todo o fluxo do pipeline desde o commit até o deploy final da aplicação em produção. Paralelo ao job que nós criamos, nós também criamos outro job que faz a parte de análise de cobertura de código e qualidade.
+
+[01:36] Então, durante todo o curso, nós abordamos um projeto real de aplicação, vocês podem utilizar no dia-a-dia de vocês e melhorar, porque a Integração Contínua também envolve melhoria contínua. A gente tem sempre que estar monitorando o nosso pipeline pra melhorar cada dia mais.
+
+[01:57] Então, fora isso, eu espero que vocês tenham aproveitado muito o curso, agradeço o tempo que vocês passaram comigo. Também espero que vocês tenham terminado todos os laboratórios e que isso seja bem útil pra vocês no dia-a-dia.
+
+[02:12] Obrigado, até mais.
