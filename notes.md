@@ -10,6 +10,12 @@ https://hub.docker.com
 http://localhost:8080
 http://192.168.33.10:8080
 http://192.168.33.10:9000/projects
+http://192.168.33.10:9000/dashboard?id=jenkins-todolist
+https://app.slack.com/client/T05QHP3JKM1/C05R7HQRJ2C
+http://192.168.33.10:81/
+http://192.168.33.10:8080/job/todo-list-desenvolvimento/
+http://192.168.33.10:8080/job/todo-list-producao/2/display/redirect
+https://github.com/souzaleandror/jenkins-todo-list
 ```
 
 ```
